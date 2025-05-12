@@ -4,6 +4,8 @@ import pymysql
 from pymysql.err import OperationalError
 import logging
 from flask_cors import CORS
+from pymysql.cursors import DictCursor
+
 
 application = Flask(__name__)
 CORS(application)
@@ -118,8 +120,29 @@ def insert_data_into_db(payload):
     """
     create_db_table()
     # TODO: Implement the database call    
-    
-    raise NotImplementedError("Database insert function not implemented.")
+    sql = """
+        INSERT INTO events (title, description, image_url, date, location)
+        VALUES (%s, %s, %s, %s, %s)
+    """
+
+    # Tuple order must match VALUES placeholders
+    values = (
+        payload.get("title"),
+        payload.get("description"),
+        payload.get("image_url"),
+        payload.get("date"),
+        payload.get("location"),
+    )
+
+    # Use a single connection per request
+    connection = get_db_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, values)
+        connection.commit()       # persist the insert
+        logging.info("Inserted event: %s", payload.get("title"))
+    finally:
+        connection.close()
 
 #Database Function Stub
 def fetch_data_from_db():
@@ -128,8 +151,17 @@ def fetch_data_from_db():
     Implement this function to fetch your data from the database.
     """
     # TODO: Implement the database call
-    
-    raise NotImplementedError("Database fetch function not implemented.")
+    sql = "SELECT * FROM events ORDER BY date ASC"
 
+    connection = get_db_connection()
+    try:
+        # DictCursor gives rows as dictionaries instead of tuples
+        with connection.cursor(DictCursor) as cursor:
+            cursor.execute(sql)
+            rows = cursor.fetchall()          # returns list[dict]
+        return rows
+    finally:
+        connection.close()
+    
 if __name__ == '__main__':
     application.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
